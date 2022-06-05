@@ -106,7 +106,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 #CMD ["/bin/bash"]
 #CMD ["python3", "/project/SG_astrometry/Code/SG_solve_1.1.py"]
 ####CMD ["/bin/sh", "-c", "python3 -u /project/SG_astrometry/Code/SG_solve_1.1.py 2>&1 | tee -a /project/SG_astrometry/Data/SG_output.log"]
-CMD ["/bin/sh", "-c", "python3 -u $SG_dir/Code/SG_solve_1.2.py 2>&1 | tee -a $SG_dir/Data/SG_output.log"]
+CMD ["/bin/sh", "-c", "python3 -u $SG_dir/Code/SG_solve_2.py 2>&1 | tee -a $SG_dir/Data/SG_output.log"]
 #CMD ["./project/SG_astrometry/Code/run_SG_solve.sh"]
 #CMD ["/bin/sh", "-c", "python /project/SG_astrometry/Code/SG_solve_1.1.py > /local/home/ccddev/SG_plots/log_output.log 2>&1"]
 #CMD ["python", "/project/SG_astrometry/Code/SG_solve_1.1.py 2>&1 | tee /local/home/ccddev/SG_plots/log_output.txt"]
