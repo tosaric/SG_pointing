@@ -1,0 +1,11 @@
+# To ensure app dependencies are ported from your virtual environment/host machine into your container, run 'pip freeze > requirements.txt' in the terminal to overwrite this file
+numpy
+wheel
+matplotlib
+pandas
+astropy
+photutils
+watchdog
+scipy
+# pysqlite3
+#pandas-bokeh
