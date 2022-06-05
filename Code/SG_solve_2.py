@@ -32,8 +32,8 @@ from astropy.utils.exceptions import AstropyUserWarning, AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 
-# Check whether tracking are ON, otherwise skip solving that particular image 
 def check_initial_conditions(event_path):
+    """ Check whether tracking is ON, otherwise skip solving that particular image """
     if ("tracking-0" in os.path.splitext(event_path)[0] or
           "tracking=0" in os.path.splitext(event_path)[0]):
         print("Tracking off, skipping: ", event_path)
@@ -42,8 +42,8 @@ def check_initial_conditions(event_path):
         return 1
 
 
-# Check if the LEDs are ON
 def check_LEDs_ON(event_path):
+    """ Check if the LEDs are ON, otherwise solve only starfield """
     if ("LED-0" in os.path.splitext(event_path)[0]) or ("LED=0" in os.path.splitext(event_path)[0]):
         print("LEDs turned off, only solving starfield: ", event_path)
         return 0
@@ -52,6 +52,7 @@ def check_LEDs_ON(event_path):
     
 
 def check_if_parked(event_path):
+    """ Check if the telescope is parked, if so, skip solving the image """
     if ("parked=1" in os.path.splitext(event_path)[0]) or ("parked-1" in os.path.splitext(event_path)[0]):
         print("Telescope is parked, skip solving!", event_path)
         return 0
@@ -59,8 +60,9 @@ def check_if_parked(event_path):
         return 1
 
 
-# In case of network connection error, it loads site information from disc
 def get_earth_location_of_a_site(earth_location):
+    """ In case of network connection error, it loads site information from the local storage.
+    Not needed anymore, soon to be removed. """
     try:
         ORM = EarthLocation.of_site(earth_location)
     except:
@@ -68,7 +70,8 @@ def get_earth_location_of_a_site(earth_location):
             ORM = pickle.load(f)
     return ORM
 
-def telescope_coordinates():
+def get_telescope_coordinates():
+    """ Get LST1 coordinates """
     # LST1 location at LaPalma
     telescope_coordinates = {"longitude" : 342.108612,
                              "lattitude" : 28.761389,
@@ -80,14 +83,14 @@ def telescope_coordinates():
     return lst1_location
     
 
-# Create a safe copy of SG image in Backup folder in case something goes wrong when solving.
 def copy_file(event_path):
+    """ Create a safe copy of SG image in Backup folder in case something goes wrong when solving."""
     os.makedirs(os.path.dirname(event_path) + "/Backup", exist_ok=True)
     copy(event_path, os.path.dirname(event_path) + "/Backup")
 
 
-# Get useful data from header
 def check_header_names(event_path):
+    """ Get some data from the header of SG image"""
     num_of_tries = 5
     for i in range(num_of_tries):
         try:
@@ -121,23 +124,24 @@ def check_header_names(event_path):
     return hdul, header, linux_time, zenith, rotation
 
 
-# Rotate SG image, because they are stored incorrectly.
 def rotate_image(event_path):
+    """ Rotate SG image before solving """
     with fits.open(event_path, mode='update') as hdul:
         hdul[0].data = hdul[0].data[::-1, ::-1]  # Ako okrecem sliku
         hdul[0].header["ROTATION"] = "True"
         hdul.flush()
 
 
-# Discard part of SG image containing PMT camera, so astrometry will solve only part of the image where stars are contained.
 def crop_image_for_astrometry(event_path):
+    """ Discard part of SG image containing PMT camera, so astrometry will solve only part of the image where stars are contained."""
     with fits.open(event_path, mode='update') as hdul:
         height, width = hdul[0].data.shape
         hdul[0].data = hdul[0].data[:, :1268]
         hdul.flush()
 
-# Solve starfield
+
 def run_astrometry_plate_solver(event_path):
+    """ Running astrometry for solving starfield """
     x_cen = 964.5
     y_cen = 726.5
 
@@ -166,8 +170,8 @@ def run_astrometry_plate_solver(event_path):
     return result
 
 
-#  Verify solved starfield
 def run_astrometry_plate_solver_verify(event_path):
+    """ Running astrometry for solving starfield with verify option """
     x_cen = 964.5
     y_cen = 726.5
 
@@ -196,8 +200,8 @@ def run_astrometry_plate_solver_verify(event_path):
     return result
 
 
-# Save output from terminal in a Output_astrometry.txt file
 def save_astrometry_terminal_output(event_path, result):
+    """ Save astrometry output from terminal in Output_astrometry.txt file """
     if (os.path.exists(os.path.dirname(event_path) + "/Output_astrometry.txt") == False):
         with open(os.path.dirname(event_path) + "/Output_astrometry.txt", 'w') as f:
             f.write(result.stdout.decode('utf-8'))
@@ -206,8 +210,8 @@ def save_astrometry_terminal_output(event_path, result):
             f.write(result.stdout.decode('utf-8'))
 
 
-# Check if image is solved successfully i.e.whether .corr exists, if not write empty row
 def check_if_solved_successfully(event_path):
+    """ Check if the image is solved successfully i.e. whether .corr exissts, if not write empty row in database and .csv file"""
     now = datetime.utcnow()
     if not (os.path.exists(os.path.splitext(event_path)[0] + ".corr")): 
         print("{0} -- event {1} SOLVED NOK".format(
@@ -221,7 +225,7 @@ def check_if_solved_successfully(event_path):
 
 # Mask sector around each of the 6 LEDs
 def sector_mask(shape, centre, radius, angle_range):
-    """
+    """ Mask sector around each of the 6 LEDs 
     Return a boolean mask for a circular sector. The start/stop angles in  
     `angle_range` should be given in clockwise order.
     """
@@ -240,18 +244,22 @@ def sector_mask(shape, centre, radius, angle_range):
 
     # wrap angles between 0 and 2*pi
     theta %= (2*np.pi)
-
     # circular mask
     circmask = r2 <= radius*radius
-
     # angular mask
     anglemask = theta <= (tmax-tmin)
 
     return circmask*anglemask
 
 
-# Solve other part of the image - find centroid of each LED, fit a circle on them and find coordinates of the center of fitted circle
 def solve_leds(event_path, w, target_source, target_X, target_Y, drive_source, scale):
+    """ Solve the other part of the image(the one with the Cherenkov camera)
+       1. Find centroid of each LED, 
+       2. Fit a circle on the centroids, 
+       3. Find a xy coordinates of the center of the fitted circle
+       4. Shift the center due to SG shift from the center of the mirror carrier
+       4. Convert xy coords of the center to RADec 
+       5. Calculate misspointing of the center of LEDs from the nominal position of the telescope """
     # ORM = get_earth_location_of_a_site('Roque de los Muchachos')
     square_size = (45, 45)
     footprint = np.zeros(square_size, dtype=bool)
@@ -264,7 +272,7 @@ def solve_leds(event_path, w, target_source, target_X, target_Y, drive_source, s
     image = hdul[0].data
     image = image[:, 1368:]
     time = datetime.utcfromtimestamp(linux_time)
-    lst1_location = telescope_coordinates()
+    lst1_location = get_telescope_coordinates()
     aa = AltAz(obstime=time,location=lst1_location, obswl=0.35*u.micron, relative_humidity=0.5,temperature=10*u.deg_C,pressure=790*u.hPa)
 
     x, y = centroid_sources(image, x_init, y_init,
@@ -383,8 +391,10 @@ def solve_leds(event_path, w, target_source, target_X, target_Y, drive_source, s
     }
     return temp_dict
 
-# Save Dataframe with data of image in csv file 
+
 def save_data_of_solved_images_csv(list_of_dfs, src_path):
+    """ Save Dataframe with aquired and analysed data of the SG image in the csv file, 
+        in the directory of the particular day of observing """
     for lst in list_of_dfs:
         df = pd.DataFrame(lst)
         day = df.iloc[0].Datetime.day
@@ -427,8 +437,8 @@ def save_data_of_solved_images_csv(list_of_dfs, src_path):
     print("Output in .csv saved successfully!")
 
 
-# Save Dataframe with data of image in database
 def save_data_of_solved_images(list_of_dfs, src_path):
+    """ Save Dataframe with aquired and analysed data of the SG image in the database """
     # Create your connection.
     #cnx = sqlite3.connect("/local/home/ccddev/SG_plots/SG_solved.db")
     ####cnx = sqlite3.connect("/project/SG_astrometry/Data/SG_solved.db")
@@ -446,8 +456,8 @@ def save_data_of_solved_images(list_of_dfs, src_path):
     print("Database updated successfully!")
 
 
-''' Main function for solving SG images '''
 def starfield_solve(event):
+    """ Main function for solving SG images """
     # ORM = get_earth_location_of_a_site('Roque de los Muchachos')
     temp_list = []
     event_path = event.src_path
@@ -490,7 +500,7 @@ def starfield_solve(event):
     avg_b = hdul[0].data.sum() / (saved_header["NAXIS1"]
                                   * saved_header["NAXIS2"])
     
-    lst1_location = telescope_coordinates()
+    lst1_location = get_telescope_coordinates()
     aa = AltAz(obstime=time,location=lst1_location, obswl=0.35*u.micron, relative_humidity=0.5,temperature=10*u.deg_C,pressure=790*u.hPa)
 
     target_source = SkyCoord(ra=saved_header["RA_TRGT"], dec=saved_header["DEC_TRGT"],
@@ -588,16 +598,14 @@ def starfield_solve(event):
     return temp_list
 
 
-
-'''
-Watchdog module(open-source python API library) is used to monitor filesystem for any changes
-(i.e. creation of a new SG image) to the given directory.
-- watchdog.observers.Observer is a class that will watch for a change and then dispatch the event to specified handler.
-- watchdog.events.PatternMatchingEventHandler is the class that will take the event dispatched by the observer and 
-perform specified action - run script for solving image and determining LST misspointing.
-'''
-
 class FileLoaderWatchdog(PatternMatchingEventHandler):
+    '''
+    Watchdog module(open-source python API library) is used to monitor filesystem for any changes
+    (i.e. creation of a new SG image) to the given directory.
+    - watchdog.observers.Observer is a class that will watch for a change and then dispatch the event to specified handler.
+    - watchdog.events.PatternMatchingEventHandler is the class that will take the event dispatched by the observer and 
+    perform specified action - run script for solving image and determining LST misspointing.
+    '''
 
     def __init__(self, queue, patterns):
         PatternMatchingEventHandler.__init__(self, patterns=patterns)
@@ -615,9 +623,9 @@ class FileLoaderWatchdog(PatternMatchingEventHandler):
         self.queue.put(event)
 
     def on_created(self, event):
-        # The backup directory keeps a safe copy of SG images in case something goes wrong when solving.
-        # Therefore, files in it will not trigger watchdog and will not be solved.
-        # Also, images with LEDs and tracking OFF will be skipped.
+        """ The backup directory keeps a safe copy of SG images in case something goes wrong when solving.
+            Therefore, files in it will not trigger watchdog and will not be analysed.
+            Also, images with tracking OFF will be skipped. """
         if ("Backup" not in event.src_path and check_initial_conditions(event.src_path) and check_if_parked(event.src_path)):
             self.process(event)
             now = datetime.utcnow()
@@ -626,6 +634,7 @@ class FileLoaderWatchdog(PatternMatchingEventHandler):
 
 
 def queue_get_all(q):
+    """ Get images in queue """
     items = []
     maxItemsToRetrieve = 10
     for numOfItemsRetrieved in range(0, maxItemsToRetrieve):
@@ -664,6 +673,7 @@ def process_load_queue(q, path_watch):
 
 
 def main():
+    """ Main function for starting watchdog """
     # create queue
     watchdog_queue = Queue()
 
@@ -672,10 +682,10 @@ def main():
     # setup watchdog to monitor directory for trigger files
     # defining the patterns attribute to watch only for files with .fits extension.
     pattern = ["*.fits"]
-    '''
-    path_watch is /fefs/onsite/data/aux/lst1/cdm/SG_images/Sorted/ 
-    but it is mounted to /home/ccddev/Starguider/Data/
-    '''
+    
+    # path_watch is /fefs/onsite/data/aux/lst1/cdm/SG_images/Sorted/ 
+    # but it is mounted to /home/ccddev/Starguider/Data/
+    
     ###path_watch = "/project/SG_astrometry/Data/"
     path_watch = "/home/ccddev/Starguider/Data/"
     # path_watch = "/home/toni/projects/astrometry/Test_2.4/SG_images/"
