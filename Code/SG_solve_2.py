@@ -650,10 +650,8 @@ def queue_get_all(q):
 def process_load_queue(q, path_watch):
     """ This is the worker thread function. It is run as a daemon 
        threads that only exit when the main thread ends.
-
        Args
-       ==========
-         q:  Queue() object
+       q:  Queue() object
     """
     PROCESSES = mp.cpu_count() - 1
     while True:
